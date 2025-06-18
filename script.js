@@ -306,6 +306,37 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function checkNeedPhoto(text) {
+    const messages = [
+      {
+        role: "user",
+        content:
+          `A patient says: ${text}. Do these symptoms require a photo for better assessment? Reply ONLY with JSON {"photo":true|false}.`,
+      },
+    ];
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "gpt-3.5-turbo", messages }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        let content = data.choices?.[0]?.message?.content?.trim();
+        if (content) {
+          content = content.replace(/```json|```/g, "").trim();
+          try {
+            const parsed = JSON.parse(content);
+            return !!parsed.photo;
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return false;
+  }
+
   function askForLocation() {
     document.querySelectorAll('.button-row').forEach((el) => el.remove());
     addBotMessage(
@@ -530,14 +561,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (state.waitingForSymptoms) {
-      state.lastSymptom = message;
-      const dermWords = ["rash", "acne", "mole", "wound", "swelling", "cough"];
-      if (dermWords.some((w) => message.toLowerCase().includes(w))) {
-        state.awaitingImage = true;
-        showImagePrompt();
-        return;
-      }
+      if (state.waitingForSymptoms) {
+        state.lastSymptom = message;
+        const dermWords = ["rash", "acne", "mole", "wound", "swelling", "cough"];
+        let needsPhoto = false;
+        try {
+          needsPhoto = await checkNeedPhoto(message);
+        } catch {}
+        if (needsPhoto || dermWords.some((w) => message.toLowerCase().includes(w))) {
+          state.awaitingImage = true;
+          showImagePrompt();
+          return;
+        }
       try {
         const result = await getRecommendation(message);
         if (result.question && state.aiQuestions < 3) {
