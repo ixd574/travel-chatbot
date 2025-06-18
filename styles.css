@@ -227,6 +227,17 @@ body::after {
   margin-top: 6px;
 }
 
+.clinic-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.clinic-address {
+  color: #555;
+}
+
 .consent-button {
   background: #fff;
   border: 1px solid #000;

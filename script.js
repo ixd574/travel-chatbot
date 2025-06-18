@@ -392,28 +392,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function pluralSpecialty(spec) {
+    return spec.endsWith('s') ? spec : spec + 's';
+  }
+
   function showClinicOptions(clinics) {
-    optionsContainer.innerHTML = '';
-    const header = document.createElement('div');
-    header.className = 'options-header';
-    header.innerHTML = '<h3>Here are some options:</h3>';
-    const grid = document.createElement('div');
-    grid.className = 'options-grid';
+    const message = document.createElement('div');
+    message.className = 'message bot';
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    const intro = document.createElement('p');
+    intro.textContent = 'Here are three options:';
+    const container = document.createElement('div');
+    container.className = 'clinic-options';
+
     clinics.forEach((c) => {
       const card = document.createElement('div');
-      card.className = 'option-card';
-      card.innerHTML = `<div class="option-header"><span>${c.name}</span><span>${c.distance} km</span></div>` +
-        `<div>${c.address} - ${c.rating}⭐ - ${state.selectedDoctor.specialty} available in ${c.days} days</div>`;
+      card.className = 'option-card clinic-card';
+      card.innerHTML =
+        `<div><strong>${c.name}</strong> ${c.rating}⭐ – ${c.distance} km away</div>` +
+        `<div class="clinic-address">${c.address}</div>` +
+        `<div>${pluralSpecialty(state.selectedDoctor.specialty)} available in ${c.days} days</div>`;
       const btn = document.createElement('button');
       btn.className = 'glass-button select-clinic';
       btn.textContent = 'Book Appointment';
       btn.addEventListener('click', () => selectClinic(c));
       card.appendChild(btn);
-      grid.appendChild(card);
+      container.appendChild(card);
     });
-    optionsContainer.appendChild(header);
-    optionsContainer.appendChild(grid);
-    optionsContainer.classList.add('active');
+
+    content.appendChild(intro);
+    content.appendChild(container);
+    message.appendChild(content);
+    chatMessages.appendChild(message);
+    scrollToBottom();
     state.awaitingClinic = true;
   }
 

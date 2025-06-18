@@ -208,6 +208,17 @@
     margin-top: 6px;
   }
 
+  .clinic-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .clinic-address {
+    color: #aaa;
+  }
+
   .consent-button {
     background: var(--button-bg);
     border: 1px solid var(--primary-color);
