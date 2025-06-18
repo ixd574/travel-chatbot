@@ -346,7 +346,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 type: "text",
                 text:
                   `A patient describes: ${state.lastSymptom}. ` +
-                  "Assess this skin photo and respond ONLY with JSON {\"diff\": [\"Diag1\", \"Diag2\", \"Diag3\"]}.",
+                  "Examine the skin photo and briefly describe in one or two sentences what you see. " +
+                  "Respond ONLY with JSON {\"desc\":\"short description\", \"diff\": [\"Diag1\", \"Diag2\", \"Diag3\"]}.",
               },
               { type: "image_url", image_url: { url: reader.result } },
             ],
@@ -359,16 +360,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const data = await response.json();
         let diag = "unsure";
+        let desc = "";
         if (response.ok) {
-          const content = data.choices?.[0]?.message?.content?.trim();
+          let content = data.choices?.[0]?.message?.content?.trim();
           if (content) {
+            // remove Markdown code fences
+            content = content.replace(/```json|```/g, "").trim();
             try {
               const parsed = JSON.parse(content);
               if (Array.isArray(parsed.diff) && parsed.diff.length) {
                 diag = parsed.diff[0];
               }
+              if (typeof parsed.desc === "string") {
+                desc = parsed.desc.trim();
+              }
             } catch {
-              diag = content.split(/[\.\n]/)[0];
+              const firstLine = content.split(/\n/)[0];
+              diag = firstLine.split(/[\.]/)[0];
+              desc = content;
             }
           }
         }
@@ -378,8 +387,9 @@ document.addEventListener("DOMContentLoaded", () => {
         state.selectedDoctor = derm;
         state.waitingForSymptoms = false;
         state.waitingForSlot = true;
+        const messageDesc = desc ? `${desc} ` : "";
         addBotMessage(
-          `Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
+          `${messageDesc}Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
         );
         showAppointmentOptions(state.selectedDoctor);
       } catch (err) {
