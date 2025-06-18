@@ -216,6 +216,11 @@ body::after {
   line-height: 1.5;
 }
 
+.message-content img {
+  max-width: 160px;
+  border-radius: 8px;
+}
+
 .button-row {
   display: flex;
   gap: 10px;

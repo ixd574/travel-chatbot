@@ -15,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatMessages = document.getElementById("chat-messages");
   const userInput = document.getElementById("user-input");
   const sendButton = document.getElementById("send-button");
-  const cameraButton = document.getElementById("camera-button");
   const imageInput = document.getElementById("image-input");
   const clearChatButton = document.getElementById("clear-chat");
   const optionsContainer = document.getElementById("options-container");
@@ -41,6 +40,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.createElement("div");
     el.className = "message user";
     el.innerHTML = `<div class="message-content">${message}</div>`;
+    chatMessages.appendChild(el);
+    scrollToBottom();
+  }
+
+  function addUserImage(src) {
+    const el = document.createElement("div");
+    el.className = "message user";
+    const content = document.createElement("div");
+    content.className = "message-content";
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "uploaded photo";
+    img.style.maxWidth = "160px";
+    content.appendChild(img);
+    el.appendChild(content);
     chatMessages.appendChild(el);
     scrollToBottom();
   }
@@ -104,6 +118,40 @@ document.addEventListener("DOMContentLoaded", () => {
       wrapper.remove();
       state.awaitingConsent = false;
       addBotMessage("No worries. If you change your mind, just type start.");
+    });
+  }
+
+  function showImagePrompt() {
+    addBotMessage("Could you snap a clear photo of the affected area?");
+    document.querySelectorAll('.button-row').forEach((el) => el.remove());
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    const cam = document.createElement('button');
+    cam.className = 'consent-button camera-button';
+    cam.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
+    const skip = document.createElement('button');
+    skip.className = 'consent-button';
+    skip.textContent = 'Skip';
+    row.appendChild(cam);
+    row.appendChild(skip);
+    chatMessages.appendChild(row);
+    scrollToBottom();
+
+    cam.addEventListener('click', () => {
+      row.remove();
+      imageInput.click();
+    });
+
+    skip.addEventListener('click', () => {
+      row.remove();
+      addUserMessage('Skip');
+      const derm = DOCTORS.find((d) => d.specialty === 'Dermatologist');
+      state.selectedDoctor = derm;
+      state.awaitingImage = false;
+      state.waitingForSymptoms = false;
+      state.waitingForSlot = true;
+      addBotMessage("A dermatologist will give the final word. Let’s book you in!");
+      showAppointmentOptions(state.selectedDoctor);
     });
   }
 
@@ -213,19 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (state.awaitingImage) {
-      if (message.toLowerCase() === "skip") {
-        state.awaitingImage = false;
-        const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
-        state.selectedDoctor = derm;
-        state.waitingForSymptoms = false;
-        state.waitingForSlot = true;
-        addBotMessage(
-          "Looks like eczema — but a dermatologist will give the final word. Let’s book you in!"
-        );
-        showAppointmentOptions(state.selectedDoctor);
-      } else {
-        addBotMessage("Please use the camera button or type skip.");
-      }
+      addBotMessage("Please use the buttons below to upload a photo or skip.");
       return;
     }
 
@@ -234,9 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const dermWords = ["rash", "acne", "mole", "wound", "swelling", "cough"];
       if (dermWords.some((w) => message.toLowerCase().includes(w))) {
         state.awaitingImage = true;
-        addBotMessage(
-          "Could you snap a clear photo of the affected area? You can also type skip if you prefer."
-        );
+        showImagePrompt();
         return;
       }
       try {
@@ -281,6 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function analyzeImage(file) {
     const reader = new FileReader();
     reader.onload = async () => {
+      addUserImage(reader.result);
       try {
         const messages = [
           {
@@ -333,7 +368,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   sendButton.addEventListener("click", handleUserMessage);
-  cameraButton.addEventListener("click", () => imageInput.click());
   imageInput.addEventListener("change", handleImageUpload);
   userInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") handleUserMessage();
