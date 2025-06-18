@@ -29,6 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
     waitingForSlot: false,
     selectedDoctor: null,
     selectedSlot: null,
+    selectedClinic: null,
+    awaitingLocation: false,
+    awaitingZip: false,
+    awaitingClinic: false,
     aiQuestions: 0,
     name: "",
     lastSymptom: "",
@@ -107,7 +111,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (bookings.length) {
       bookings.forEach((b) => {
         const p = document.createElement("p");
-        p.innerHTML = `<strong>${b.doctor.name}</strong> (${b.doctor.specialty}) - ${b.slot}`;
+        const clinicText = b.clinic ? ` at ${b.clinic.name}` : "";
+        p.innerHTML = `<strong>${b.doctor.name}</strong> (${b.doctor.specialty})${clinicText} - ${b.slot}`;
         div.appendChild(p);
       });
     } else {
@@ -202,21 +207,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const derm = DOCTORS.find((d) => d.specialty === 'Dermatologist');
       state.selectedDoctor = derm;
       state.waitingForSymptoms = false;
-      state.waitingForSlot = true;
       addBotMessage(
         `Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
       );
-      showAppointmentOptions(state.selectedDoctor);
+      askForLocation();
     } catch (err) {
       console.error(err);
       const derm = DOCTORS.find((d) => d.specialty === 'Dermatologist');
       state.selectedDoctor = derm;
       state.waitingForSymptoms = false;
-      state.waitingForSlot = true;
       addBotMessage(
         "A dermatologist will give the final word. Let’s book you in!"
       );
-      showAppointmentOptions(state.selectedDoctor);
+      askForLocation();
     }
   }
 
@@ -262,8 +265,12 @@ document.addEventListener("DOMContentLoaded", () => {
     state.awaitingImage = false;
     state.waitingForSymptoms = false;
     state.waitingForSlot = false;
+    state.awaitingLocation = false;
+    state.awaitingZip = false;
+    state.awaitingClinic = false;
     state.selectedDoctor = null;
     state.selectedSlot = null;
+    state.selectedClinic = null;
     state.aiQuestions = 0;
     state.name = "";
     state.lastSymptom = "";
@@ -299,6 +306,124 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function askForLocation() {
+    document.querySelectorAll('.button-row').forEach((el) => el.remove());
+    addBotMessage(
+      'May I use your device location to find the nearest clinic?<br>(If you\u2019d rather type your ZIP/postcode, choose Skip.)'
+    );
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    const share = document.createElement('button');
+    share.className = 'consent-button';
+    share.textContent = 'Share Location \uD83D\uDCCD';
+    const skip = document.createElement('button');
+    skip.className = 'consent-button';
+    skip.textContent = 'Skip \u274C';
+    row.appendChild(share);
+    row.appendChild(skip);
+    chatMessages.appendChild(row);
+    scrollToBottom();
+    state.awaitingLocation = true;
+
+    share.addEventListener('click', () => {
+      row.remove();
+      state.awaitingLocation = false;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = `${pos.coords.latitude.toFixed(3)},${pos.coords.longitude.toFixed(3)}`;
+          fetchClinics(loc);
+        },
+        () => {
+          addBotMessage("Couldn't get your location. Please type your ZIP/postcode.");
+          state.awaitingZip = true;
+        }
+      );
+    });
+
+    skip.addEventListener('click', () => {
+      row.remove();
+      addUserMessage('Skip');
+      state.awaitingLocation = false;
+      state.awaitingZip = true;
+      addBotMessage('Please type your ZIP/postcode.');
+    });
+  }
+
+  async function fetchClinics(locationText) {
+    const messages = [
+      {
+        role: 'user',
+        content:
+          `Generate 3 fictional clinic options near ${locationText} with distance in km, address, rating out of 5, and days until a ${state.selectedDoctor.specialty} is available. Respond ONLY with JSON [{"name":"","distance":0,"address":"","rating":0,"days":0}]`,
+      },
+    ];
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-3.5-turbo', messages }),
+      });
+      const data = await response.json();
+      let clinics = [];
+      if (response.ok) {
+        let content = data.choices?.[0]?.message?.content?.trim();
+        if (content) {
+          content = content.replace(/```json|```/g, '').trim();
+          try {
+            clinics = JSON.parse(content);
+          } catch {}
+        }
+      }
+      if (!Array.isArray(clinics) || !clinics.length) {
+        clinics = [
+          { name: 'HealthCo Central', distance: 2, address: '1 Main St', rating: 4.6, days: 2 },
+          { name: 'Downtown Clinic', distance: 5, address: '55 Oak Ave', rating: 4.4, days: 3 },
+          { name: 'Riverside Health', distance: 7, address: '200 River Rd', rating: 4.2, days: 4 },
+        ];
+      }
+      showClinicOptions(clinics);
+    } catch (err) {
+      console.error(err);
+      showClinicOptions([
+        { name: 'HealthCo Central', distance: 2, address: '1 Main St', rating: 4.6, days: 2 },
+        { name: 'Downtown Clinic', distance: 5, address: '55 Oak Ave', rating: 4.4, days: 3 },
+        { name: 'Riverside Health', distance: 7, address: '200 River Rd', rating: 4.2, days: 4 },
+      ]);
+    }
+  }
+
+  function showClinicOptions(clinics) {
+    optionsContainer.innerHTML = '';
+    const header = document.createElement('div');
+    header.className = 'options-header';
+    header.innerHTML = '<h3>Here are some options:</h3>';
+    const grid = document.createElement('div');
+    grid.className = 'options-grid';
+    clinics.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = 'option-card';
+      card.innerHTML = `<div class="option-header"><span>${c.name}</span><span>${c.distance} km</span></div>` +
+        `<div>${c.address} - ${c.rating}⭐ - ${state.selectedDoctor.specialty} available in ${c.days} days</div>`;
+      const btn = document.createElement('button');
+      btn.className = 'glass-button select-clinic';
+      btn.textContent = 'Book Appointment';
+      btn.addEventListener('click', () => selectClinic(c));
+      card.appendChild(btn);
+      grid.appendChild(card);
+    });
+    optionsContainer.appendChild(header);
+    optionsContainer.appendChild(grid);
+    optionsContainer.classList.add('active');
+    state.awaitingClinic = true;
+  }
+
+  function selectClinic(clinic) {
+    state.selectedClinic = clinic;
+    state.awaitingClinic = false;
+    optionsContainer.classList.remove('active');
+    showAppointmentOptions(state.selectedDoctor);
+  }
+
   function showAppointmentOptions(doctor) {
     optionsContainer.innerHTML = "";
     if (!appointmentTemplate) return;
@@ -314,16 +439,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     optionsContainer.appendChild(content);
     optionsContainer.classList.add("active");
+    state.waitingForSlot = true;
   }
 
   function selectSlot(time) {
-    bookings.push({ doctor: state.selectedDoctor, slot: time });
+    bookings.push({ doctor: state.selectedDoctor, clinic: state.selectedClinic, slot: time });
     state.selectedSlot = time;
     state.waitingForSlot = false;
     optionsContainer.classList.remove("active");
     addBotMessage(`Appointment with ${state.selectedDoctor.name} confirmed for ${time}. You'll receive a reminder!`);
     updateSummary();
     state.waitingForSymptoms = true;
+    state.selectedClinic = null;
     state.selectedDoctor = null;
     state.selectedSlot = null;
     state.aiQuestions = 0;
@@ -353,6 +480,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (state.awaitingConsent) {
       addBotMessage("Please use the buttons below to continue.");
+      return;
+    }
+
+    if (state.awaitingLocation) {
+      addBotMessage('Please use the buttons below to share your location or skip.');
+      return;
+    }
+
+    if (state.awaitingZip) {
+      state.awaitingZip = false;
+      fetchClinics(message);
+      return;
+    }
+
+    if (state.awaitingClinic) {
+      addBotMessage('Please choose one of the clinic options below.');
       return;
     }
 
@@ -395,9 +538,8 @@ document.addEventListener("DOMContentLoaded", () => {
             slots: result.slots,
           };
           state.waitingForSymptoms = false;
-          state.waitingForSlot = true;
-          addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}. Available times:`);
-          showAppointmentOptions(state.selectedDoctor);
+          addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}.`);
+          askForLocation();
         } else {
           addBotMessage("Sorry, I couldn't understand. Could you rephrase?");
         }
@@ -476,12 +618,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
         state.selectedDoctor = derm;
         state.waitingForSymptoms = false;
-        state.waitingForSlot = true;
         const messageDesc = desc ? `${desc} ` : "";
         addBotMessage(
           `${messageDesc}Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
         );
-        showAppointmentOptions(state.selectedDoctor);
+        askForLocation();
       } catch (err) {
         console.error(err);
         stopLoading();
@@ -492,8 +633,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
         state.selectedDoctor = derm;
         state.waitingForSymptoms = false;
-        state.waitingForSlot = true;
-        showAppointmentOptions(state.selectedDoctor);
+        askForLocation();
       }
     };
     reader.readAsDataURL(file);
