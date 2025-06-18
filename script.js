@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const API_KEY = ""; // Set your OpenAI API key here
 
   const DOCTORS = [
     { name: "Dr. Adams", specialty: "Cardiologist", slots: ["10:00 tomorrow", "15:00 tomorrow", "10:00 next Monday"] },
@@ -84,21 +83,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function getRecommendation(text) {
-    if (!API_KEY) {
-      throw new Error("OpenAI API key not set");
-    }
     conversation.push({ role: "user", content: text });
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({ model: "gpt-3.5-turbo", messages: conversation }),
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error?.message || "API request failed");
+      throw new Error(data.error || "API request failed");
     }
     const reply = data.choices[0].message.content.trim();
     conversation.push({ role: "assistant", content: reply });
