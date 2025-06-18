@@ -71,22 +71,22 @@ document.addEventListener("DOMContentLoaded", () => {
     addBotMessage(
       "\uD83D\uDC4B Welcome to HealthCo Clinics!<br>We\u2019ll use the info you share to find the best care for you.<br>Do you consent to proceeding under our privacy policy?"
     );
-    optionsContainer.innerHTML = "";
+    document.querySelectorAll('.button-row').forEach((el) => el.remove());
+    const wrapper = document.createElement("div");
+    wrapper.className = "button-row";
     const yes = document.createElement("button");
-    yes.className = "glass-button primary";
+    yes.className = "consent-button";
     yes.textContent = "Yes \u2705";
     const no = document.createElement("button");
-    no.className = "glass-button";
+    no.className = "consent-button";
     no.textContent = "No \u274C";
-    const wrapper = document.createElement("div");
     wrapper.appendChild(yes);
     wrapper.appendChild(no);
-    optionsContainer.appendChild(wrapper);
-    optionsContainer.classList.add("active");
+    chatMessages.appendChild(wrapper);
+    scrollToBottom();
 
     yes.addEventListener("click", () => {
-      optionsContainer.classList.remove("active");
-      optionsContainer.innerHTML = "";
+      wrapper.remove();
       state.awaitingConsent = false;
       state.waitingForSymptoms = true;
       setTimeout(() => {
@@ -95,8 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     no.addEventListener("click", () => {
-      optionsContainer.classList.remove("active");
-      optionsContainer.innerHTML = "";
+      wrapper.remove();
       state.awaitingConsent = false;
       addBotMessage("No worries. If you change your mind, just type start.");
     });
@@ -189,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (state.awaitingConsent) {
-      addBotMessage("Please use the buttons above to continue.");
+      addBotMessage("Please use the buttons below to continue.");
       return;
     }
 

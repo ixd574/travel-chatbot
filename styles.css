@@ -216,6 +216,26 @@ body::after {
   line-height: 1.5;
 }
 
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.consent-button {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #000;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.consent-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .chat-input-container {
   display: flex;
   gap: 10px;
