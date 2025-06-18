@@ -345,7 +345,8 @@ document.addEventListener("DOMContentLoaded", () => {
               {
                 type: "text",
                 text:
-                  "Assess this skin photo and return JSON like {\"diff\":[\"Diag1\",\"Diag2\",\"Diag3\"]}.",
+                  `A patient describes: ${state.lastSymptom}. ` +
+                  "Assess this skin photo and respond ONLY with JSON {\"diff\": [\"Diag1\", \"Diag2\", \"Diag3\"]}.",
               },
               { type: "image_url", image_url: { url: reader.result } },
             ],
@@ -357,11 +358,19 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ model: "gpt-4o", messages }),
         });
         const data = await response.json();
-        let diag = "eczema";
+        let diag = "unsure";
         if (response.ok) {
-          try {
-            diag = JSON.parse(data.choices[0].message.content.trim()).diff[0];
-          } catch {}
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) {
+            try {
+              const parsed = JSON.parse(content);
+              if (Array.isArray(parsed.diff) && parsed.diff.length) {
+                diag = parsed.diff[0];
+              }
+            } catch {
+              diag = content.split(/[\.\n]/)[0];
+            }
+          }
         }
         stopLoading();
         state.awaitingImage = false;
