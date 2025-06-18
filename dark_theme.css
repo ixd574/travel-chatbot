@@ -258,6 +258,15 @@
     background: var(--primary-light);
     transform: scale(1.05);
   }
+
+  .camera-button {
+    background: var(--primary-light);
+    margin-right: 8px;
+  }
+
+  .camera-button:hover {
+    background: var(--primary-color);
+  }
   
   /* Options Container Styling */
   .options-container {

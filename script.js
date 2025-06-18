@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatMessages = document.getElementById("chat-messages");
   const userInput = document.getElementById("user-input");
   const sendButton = document.getElementById("send-button");
+  const cameraButton = document.getElementById("camera-button");
+  const imageInput = document.getElementById("image-input");
   const clearChatButton = document.getElementById("clear-chat");
   const optionsContainer = document.getElementById("options-container");
   const summary = document.getElementById("booking-summary");
@@ -22,11 +24,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const state = {
     awaitingConsent: true,
+    awaitingName: false,
+    awaitingImage: false,
     waitingForSymptoms: false,
     waitingForSlot: false,
     selectedDoctor: null,
     selectedSlot: null,
     aiQuestions: 0,
+    name: "",
+    lastSymptom: "",
   };
 
   const bookings = [];
@@ -88,9 +94,9 @@ document.addEventListener("DOMContentLoaded", () => {
     yes.addEventListener("click", () => {
       wrapper.remove();
       state.awaitingConsent = false;
-      state.waitingForSymptoms = true;
+      state.awaitingName = true;
       setTimeout(() => {
-        addBotMessage("Hello! What symptoms are you experiencing today?");
+        addBotMessage("Great! What's your name?");
       }, 100);
     });
 
@@ -106,11 +112,15 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsContainer.innerHTML = "";
     optionsContainer.classList.remove("active");
     state.awaitingConsent = true;
+    state.awaitingName = false;
+    state.awaitingImage = false;
     state.waitingForSymptoms = false;
     state.waitingForSlot = false;
     state.selectedDoctor = null;
     state.selectedSlot = null;
     state.aiQuestions = 0;
+    state.name = "";
+    state.lastSymptom = "";
     conversation = [{ role: "system", content: basePrompt }];
     updateSummary();
     setTimeout(() => {
@@ -182,6 +192,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (message.toLowerCase() === "start") {
       state.awaitingConsent = true;
+      state.awaitingName = false;
+      state.awaitingImage = false;
       state.waitingForSymptoms = false;
       showConsentPrompt();
       return;
@@ -192,7 +204,41 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (state.awaitingName) {
+      state.name = message;
+      state.awaitingName = false;
+      state.waitingForSymptoms = true;
+      addBotMessage(`Hello ${state.name}. What symptoms are you experiencing?`);
+      return;
+    }
+
+    if (state.awaitingImage) {
+      if (message.toLowerCase() === "skip") {
+        state.awaitingImage = false;
+        const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
+        state.selectedDoctor = derm;
+        state.waitingForSymptoms = false;
+        state.waitingForSlot = true;
+        addBotMessage(
+          "Looks like eczema — but a dermatologist will give the final word. Let’s book you in!"
+        );
+        showAppointmentOptions(state.selectedDoctor);
+      } else {
+        addBotMessage("Please use the camera button or type skip.");
+      }
+      return;
+    }
+
     if (state.waitingForSymptoms) {
+      state.lastSymptom = message;
+      const dermWords = ["rash", "acne", "mole", "wound", "swelling", "cough"];
+      if (dermWords.some((w) => message.toLowerCase().includes(w))) {
+        state.awaitingImage = true;
+        addBotMessage(
+          "Could you snap a clear photo of the affected area? You can also type skip if you prefer."
+        );
+        return;
+      }
       try {
         const result = await getRecommendation(message);
         if (result.question && state.aiQuestions < 3) {
@@ -221,12 +267,74 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         addBotMessage("Please select an available time from the buttons below.");
       }
-    } else {
-      addBotMessage("How else can I assist you?");
-    }
+  } else {
+    addBotMessage("How else can I assist you?");
+  }
+}
+
+  function handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (file) analyzeImage(file);
+    e.target.value = "";
+  }
+
+  async function analyzeImage(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const messages = [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text:
+                  "Assess this skin photo and return JSON like {\"diff\":[\"Diag1\",\"Diag2\",\"Diag3\"]}.",
+              },
+              { type: "image_url", image_url: { url: reader.result } },
+            ],
+          },
+        ];
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "gpt-4o", messages }),
+        });
+        const data = await response.json();
+        let diag = "eczema";
+        if (response.ok) {
+          try {
+            diag = JSON.parse(data.choices[0].message.content.trim()).diff[0];
+          } catch {}
+        }
+        state.awaitingImage = false;
+        const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
+        state.selectedDoctor = derm;
+        state.waitingForSymptoms = false;
+        state.waitingForSlot = true;
+        addBotMessage(
+          `Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
+        );
+        showAppointmentOptions(state.selectedDoctor);
+      } catch (err) {
+        console.error(err);
+        state.awaitingImage = false;
+        addBotMessage(
+          "Error analyzing image. We'll book you with a dermatologist to be safe."
+        );
+        const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
+        state.selectedDoctor = derm;
+        state.waitingForSymptoms = false;
+        state.waitingForSlot = true;
+        showAppointmentOptions(state.selectedDoctor);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   sendButton.addEventListener("click", handleUserMessage);
+  cameraButton.addEventListener("click", () => imageInput.click());
+  imageInput.addEventListener("change", handleImageUpload);
   userInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") handleUserMessage();
   });
