@@ -265,12 +265,11 @@
   }
 
   .camera-button {
-    background: var(--primary-light);
     margin-right: 8px;
   }
 
   .camera-button:hover {
-    background: var(--primary-color);
+    background: var(--button-hover);
   }
   
   /* Options Container Styling */

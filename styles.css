@@ -284,12 +284,11 @@ body::after {
 }
 
 .camera-button {
-  background: var(--primary-light);
   margin-right: 8px;
 }
 
 .camera-button:hover {
-  background: var(--primary-color);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 /* Options Container Styling */

@@ -67,6 +67,26 @@ document.addEventListener("DOMContentLoaded", () => {
     scrollToBottom();
   }
 
+  function showAnalyzing() {
+    const el = document.createElement("div");
+    el.className = "message bot";
+    const content = document.createElement("div");
+    content.className = "message-content";
+    content.textContent = "Analyzing";
+    el.appendChild(content);
+    chatMessages.appendChild(el);
+    scrollToBottom();
+    let dots = 0;
+    const interval = setInterval(() => {
+      dots = (dots + 1) % 4;
+      content.textContent = "Analyzing" + ".".repeat(dots);
+    }, 500);
+    return () => {
+      clearInterval(interval);
+      el.remove();
+    };
+  }
+
   function scrollToBottom() {
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
@@ -316,6 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = async () => {
       addUserImage(reader.result);
+      const stopLoading = showAnalyzing();
       try {
         const messages = [
           {
@@ -342,6 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
             diag = JSON.parse(data.choices[0].message.content.trim()).diff[0];
           } catch {}
         }
+        stopLoading();
         state.awaitingImage = false;
         const derm = DOCTORS.find((d) => d.specialty === "Dermatologist");
         state.selectedDoctor = derm;
@@ -353,6 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showAppointmentOptions(state.selectedDoctor);
       } catch (err) {
         console.error(err);
+        stopLoading();
         state.awaitingImage = false;
         addBotMessage(
           "Error analyzing image. We'll book you with a dermatologist to be safe."
