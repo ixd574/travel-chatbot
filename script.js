@@ -82,23 +82,28 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function getRecommendation(text) {
+    if (!API_KEY) {
+      throw new Error("OpenAI API key not set");
+    }
     conversation.push({ role: "user", content: text });
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({ model: "gpt-3.5-turbo", messages: conversation }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || "API request failed");
+    }
+    const reply = data.choices[0].message.content.trim();
+    conversation.push({ role: "assistant", content: reply });
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${API_KEY}`,
-        },
-        body: JSON.stringify({ model: "gpt-3.5-turbo", messages: conversation }),
-      });
-      const data = await response.json();
-      const reply = data.choices[0].message.content.trim();
-      conversation.push({ role: "assistant", content: reply });
       return JSON.parse(reply);
-    } catch (e) {
-      console.error("AI error", e);
-      return {};
+    } catch {
+      throw new Error("Failed to parse AI response: " + reply);
     }
   }
 
@@ -134,22 +139,27 @@ document.addEventListener("DOMContentLoaded", () => {
     userInput.value = "";
 
     if (state.waitingForSymptoms) {
-      const result = await getRecommendation(message);
-      if (result.question && state.aiQuestions < 3) {
-        state.aiQuestions++;
-        addBotMessage(result.question);
-      } else if (result.doctor) {
-        state.selectedDoctor = DOCTORS.find((d) => d.name === result.doctor) || {
-          name: result.doctor,
-          specialty: result.specialty,
-          slots: result.slots,
-        };
-        state.waitingForSymptoms = false;
-        state.waitingForSlot = true;
-        addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}. Available times:`);
-        showAppointmentOptions(state.selectedDoctor);
-      } else {
-        addBotMessage("Sorry, I couldn't understand. Could you rephrase?");
+      try {
+        const result = await getRecommendation(message);
+        if (result.question && state.aiQuestions < 3) {
+          state.aiQuestions++;
+          addBotMessage(result.question);
+        } else if (result.doctor) {
+          state.selectedDoctor = DOCTORS.find((d) => d.name === result.doctor) || {
+            name: result.doctor,
+            specialty: result.specialty,
+            slots: result.slots,
+          };
+          state.waitingForSymptoms = false;
+          state.waitingForSlot = true;
+          addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}. Available times:`);
+          showAppointmentOptions(state.selectedDoctor);
+        } else {
+          addBotMessage("Sorry, I couldn't understand. Could you rephrase?");
+        }
+      } catch (err) {
+        console.error(err);
+        addBotMessage(`Error: ${err.message}`);
       }
     } else if (state.waitingForSlot) {
       if (state.selectedDoctor.slots.includes(message)) {
