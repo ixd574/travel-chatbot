@@ -84,10 +84,10 @@
     margin-bottom: 30px;
   }
   
-  .logo svg {
-    height: 40px;
-    filter: brightness(0) invert(1);
-    margin-left: 22.37px;
+  .logo-text {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--primary-color);
   }
   
   .booking-summary {

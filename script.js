@@ -1,4 +1,18 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const API_KEY = ""; // Set your OpenAI API key here
+
+  const DOCTORS = [
+    { name: "Dr. Adams", specialty: "Cardiologist", slots: ["10:00 tomorrow", "15:00 tomorrow", "10:00 next Monday"] },
+    { name: "Dr. Baker", specialty: "General Practitioner", slots: ["11:00 tomorrow", "16:00 tomorrow", "09:00 Friday"] },
+    { name: "Dr. Chen", specialty: "Pulmonologist", slots: ["09:30 tomorrow", "14:30 tomorrow", "11:00 Saturday"] },
+    { name: "Dr. Davis", specialty: "Dermatologist", slots: ["13:00 tomorrow", "17:00 Friday", "09:00 next Tuesday"] },
+    { name: "Dr. Evans", specialty: "Neurologist", slots: ["10:30 tomorrow", "15:30 Monday", "14:00 Wednesday"] },
+    { name: "Dr. Flores", specialty: "Gastroenterologist", slots: ["12:00 tomorrow", "18:00 tomorrow", "10:00 next Thursday"] },
+  ];
+
+  const basePrompt = `You are an AI healthcare assistant. Ask the user up to 3 short follow-up questions to better understand their symptoms. When confident, recommend the best doctor from the provided list and include available slots. Respond ONLY in JSON like {"question":"string"} while gathering info or {"doctor":"Dr. Name","specialty":"specialty","slots":["time1","time2"...]}. Available doctors: ${DOCTORS.map(d => `${d.name} - ${d.specialty} times: ${d.slots.join(" ")}`).join("; ")}`;
+
+  let conversation = [{ role: "system", content: basePrompt }];
   const chatMessages = document.getElementById("chat-messages");
   const userInput = document.getElementById("user-input");
   const sendButton = document.getElementById("send-button");
@@ -12,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     waitingForSlot: false,
     selectedDoctor: null,
     selectedSlot: null,
+    aiQuestions: 0,
   };
 
   function addUserMessage(message) {
@@ -35,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateSummary() {
-    summary.innerHTML = "<h3>Your Appointment</h3>";
+    summary.innerHTML = "<h3>Your Appointments</h3>";
     if (state.selectedDoctor && state.selectedSlot) {
       const div = document.createElement("div");
       div.className = "summary-content";
@@ -58,18 +73,33 @@ document.addEventListener("DOMContentLoaded", () => {
     state.waitingForSlot = false;
     state.selectedDoctor = null;
     state.selectedSlot = null;
+    state.aiQuestions = 0;
+    conversation = [{ role: "system", content: basePrompt }];
     updateSummary();
     setTimeout(() => {
       addBotMessage("Hello! What symptoms are you experiencing today?");
     }, 100);
   }
 
-  function triage(symptoms) {
-    const text = symptoms.toLowerCase();
-    if (text.includes("chest") || text.includes("heart") || text.includes("tightness")) {
-      return { name: "Dr. Adams", specialty: "Cardiologist", slots: ["10:00 tomorrow", "15:00 tomorrow"] };
+  async function getRecommendation(text) {
+    conversation.push({ role: "user", content: text });
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ model: "gpt-3.5-turbo", messages: conversation }),
+      });
+      const data = await response.json();
+      const reply = data.choices[0].message.content.trim();
+      conversation.push({ role: "assistant", content: reply });
+      return JSON.parse(reply);
+    } catch (e) {
+      console.error("AI error", e);
+      return {};
     }
-    return { name: "Dr. Baker", specialty: "General Practitioner", slots: ["11:00 tomorrow", "16:00 tomorrow"] };
   }
 
   function showAppointmentOptions(doctor) {
@@ -97,18 +127,30 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSummary();
   }
 
-  function handleUserMessage() {
+  async function handleUserMessage() {
     const message = userInput.value.trim();
     if (!message) return;
     addUserMessage(message);
     userInput.value = "";
 
     if (state.waitingForSymptoms) {
-      state.selectedDoctor = triage(message);
-      state.waitingForSymptoms = false;
-      state.waitingForSlot = true;
-      addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}. Available times:`);
-      showAppointmentOptions(state.selectedDoctor);
+      const result = await getRecommendation(message);
+      if (result.question && state.aiQuestions < 3) {
+        state.aiQuestions++;
+        addBotMessage(result.question);
+      } else if (result.doctor) {
+        state.selectedDoctor = DOCTORS.find((d) => d.name === result.doctor) || {
+          name: result.doctor,
+          specialty: result.specialty,
+          slots: result.slots,
+        };
+        state.waitingForSymptoms = false;
+        state.waitingForSlot = true;
+        addBotMessage(`You may need a consultation with a ${state.selectedDoctor.specialty}. Available times:`);
+        showAppointmentOptions(state.selectedDoctor);
+      } else {
+        addBotMessage("Sorry, I couldn't understand. Could you rephrase?");
+      }
     } else if (state.waitingForSlot) {
       if (state.selectedDoctor.slots.includes(message)) {
         selectSlot(message);
