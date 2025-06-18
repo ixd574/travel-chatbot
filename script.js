@@ -32,9 +32,18 @@ document.addEventListener("DOMContentLoaded", () => {
     aiQuestions: 0,
     name: "",
     lastSymptom: "",
+    clarifying: false,
+    clarifyIndex: 0,
+    clarifyAnswers: [],
   };
 
   const bookings = [];
+
+  const CLARIFY_QUESTIONS = [
+    "How long have you had this issue?",
+    "Does it itch or cause pain?",
+    "Have you noticed any triggers or tried treatments?",
+  ];
 
   function addUserMessage(message) {
     const el = document.createElement("div");
@@ -165,14 +174,83 @@ document.addEventListener("DOMContentLoaded", () => {
     skip.addEventListener('click', () => {
       row.remove();
       addUserMessage('Skip');
+      state.awaitingImage = false;
+      state.clarifying = true;
+      state.clarifyIndex = 0;
+      state.clarifyAnswers = [];
+      askNextClarifyQuestion();
+    });
+  }
+
+  function askNextClarifyQuestion() {
+    if (state.clarifyIndex < CLARIFY_QUESTIONS.length) {
+      const q = CLARIFY_QUESTIONS[state.clarifyIndex];
+      state.clarifyIndex++;
+      addBotMessage(q);
+    } else {
+      finalizeClarification();
+    }
+  }
+
+  async function finalizeClarification() {
+    state.clarifying = false;
+    try {
+      const diag = await getDiagnosisFromClarifications(
+        state.lastSymptom,
+        state.clarifyAnswers
+      );
       const derm = DOCTORS.find((d) => d.specialty === 'Dermatologist');
       state.selectedDoctor = derm;
-      state.awaitingImage = false;
       state.waitingForSymptoms = false;
       state.waitingForSlot = true;
-      addBotMessage("A dermatologist will give the final word. Let’s book you in!");
+      addBotMessage(
+        `Looks like ${diag} \u2014 but a dermatologist will give the final word. Let\u2019s book you in!`
+      );
       showAppointmentOptions(state.selectedDoctor);
+    } catch (err) {
+      console.error(err);
+      const derm = DOCTORS.find((d) => d.specialty === 'Dermatologist');
+      state.selectedDoctor = derm;
+      state.waitingForSymptoms = false;
+      state.waitingForSlot = true;
+      addBotMessage(
+        "A dermatologist will give the final word. Let’s book you in!"
+      );
+      showAppointmentOptions(state.selectedDoctor);
+    }
+  }
+
+  async function getDiagnosisFromClarifications(symptom, answers) {
+    const text = `Symptom: ${symptom}. Answers: ${answers
+      .map((a, i) => `Q${i + 1}: ${CLARIFY_QUESTIONS[i]} A: ${a}`)
+      .join(' ')}`;
+    const messages = [
+      {
+        role: 'user',
+        content:
+          text +
+          ' Based on this, what is the most likely skin diagnosis? Respond with JSON {"diagnosis":"text"}.',
+      },
+    ];
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages }),
     });
+    const data = await response.json();
+    if (response.ok) {
+      let content = data.choices?.[0]?.message?.content?.trim();
+      if (content) {
+        content = content.replace(/```json|```/g, '').trim();
+        try {
+          const parsed = JSON.parse(content);
+          if (parsed.diagnosis) return parsed.diagnosis;
+        } catch {
+          return content.split(/\n/)[0];
+        }
+      }
+    }
+    throw new Error('diagnosis fetch failed');
   }
 
   function clearChat() {
@@ -189,6 +267,9 @@ document.addEventListener("DOMContentLoaded", () => {
     state.aiQuestions = 0;
     state.name = "";
     state.lastSymptom = "";
+    state.clarifying = false;
+    state.clarifyIndex = 0;
+    state.clarifyAnswers = [];
     conversation = [{ role: "system", content: basePrompt }];
     updateSummary();
     setTimeout(() => {
@@ -246,6 +327,9 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectedDoctor = null;
     state.selectedSlot = null;
     state.aiQuestions = 0;
+    state.clarifying = false;
+    state.clarifyIndex = 0;
+    state.clarifyAnswers = [];
     conversation = [{ role: "system", content: basePrompt }];
     setTimeout(() => {
       addBotMessage("Let me know if you have other symptoms.");
@@ -282,6 +366,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (state.awaitingImage) {
       addBotMessage("Please use the buttons below to upload a photo or skip.");
+      return;
+    }
+
+    if (state.clarifying) {
+      state.clarifyAnswers.push(message);
+      askNextClarifyQuestion();
       return;
     }
 
