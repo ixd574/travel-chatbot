@@ -29,6 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
     aiQuestions: 0,
   };
 
+  const bookings = [];
+
   function addUserMessage(message) {
     const el = document.createElement("div");
     el.className = "message user";
@@ -51,18 +53,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateSummary() {
     summary.innerHTML = "<h3>Your Appointments</h3>";
-    if (state.selectedDoctor && state.selectedSlot) {
-      const div = document.createElement("div");
-      div.className = "summary-content";
-      div.innerHTML = `<p><strong>${state.selectedDoctor.name}</strong> (${state.selectedDoctor.specialty})</p>` +
-        `<p>${state.selectedSlot}</p>`;
-      summary.appendChild(div);
+    const div = document.createElement("div");
+    div.className = "summary-content";
+    if (bookings.length) {
+      bookings.forEach((b) => {
+        const p = document.createElement("p");
+        p.innerHTML = `<strong>${b.doctor.name}</strong> (${b.doctor.specialty}) - ${b.slot}`;
+        div.appendChild(p);
+      });
     } else {
-      const div = document.createElement("div");
-      div.className = "summary-content";
       div.innerHTML = "<p>No appointment yet</p>";
-      summary.appendChild(div);
     }
+    summary.appendChild(div);
   }
 
   function clearChat() {
@@ -125,11 +127,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function selectSlot(time) {
+    bookings.push({ doctor: state.selectedDoctor, slot: time });
     state.selectedSlot = time;
     state.waitingForSlot = false;
     optionsContainer.classList.remove("active");
     addBotMessage(`Appointment with ${state.selectedDoctor.name} confirmed for ${time}. You'll receive a reminder!`);
     updateSummary();
+    state.waitingForSymptoms = true;
+    state.selectedDoctor = null;
+    state.selectedSlot = null;
+    state.aiQuestions = 0;
+    conversation = [{ role: "system", content: basePrompt }];
+    setTimeout(() => {
+      addBotMessage("Let me know if you have other symptoms.");
+    }, 100);
   }
 
   async function handleUserMessage() {
