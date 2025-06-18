@@ -21,7 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const appointmentTemplate = document.getElementById("appointment-options-template");
 
   const state = {
-    waitingForSymptoms: true,
+    awaitingConsent: true,
+    waitingForSymptoms: false,
     waitingForSlot: false,
     selectedDoctor: null,
     selectedSlot: null,
@@ -66,11 +67,47 @@ document.addEventListener("DOMContentLoaded", () => {
     summary.appendChild(div);
   }
 
+  function showConsentPrompt() {
+    addBotMessage(
+      "\uD83D\uDC4B Welcome to HealthCo Clinics!<br>We\u2019ll use the info you share to find the best care for you.<br>Do you consent to proceeding under our privacy policy?"
+    );
+    optionsContainer.innerHTML = "";
+    const yes = document.createElement("button");
+    yes.className = "glass-button primary";
+    yes.textContent = "Yes \u2705";
+    const no = document.createElement("button");
+    no.className = "glass-button";
+    no.textContent = "No \u274C";
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(yes);
+    wrapper.appendChild(no);
+    optionsContainer.appendChild(wrapper);
+    optionsContainer.classList.add("active");
+
+    yes.addEventListener("click", () => {
+      optionsContainer.classList.remove("active");
+      optionsContainer.innerHTML = "";
+      state.awaitingConsent = false;
+      state.waitingForSymptoms = true;
+      setTimeout(() => {
+        addBotMessage("Hello! What symptoms are you experiencing today?");
+      }, 100);
+    });
+
+    no.addEventListener("click", () => {
+      optionsContainer.classList.remove("active");
+      optionsContainer.innerHTML = "";
+      state.awaitingConsent = false;
+      addBotMessage("No worries. If you change your mind, just type start.");
+    });
+  }
+
   function clearChat() {
     chatMessages.innerHTML = "";
     optionsContainer.innerHTML = "";
     optionsContainer.classList.remove("active");
-    state.waitingForSymptoms = true;
+    state.awaitingConsent = true;
+    state.waitingForSymptoms = false;
     state.waitingForSlot = false;
     state.selectedDoctor = null;
     state.selectedSlot = null;
@@ -78,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     conversation = [{ role: "system", content: basePrompt }];
     updateSummary();
     setTimeout(() => {
-      addBotMessage("Hello! What symptoms are you experiencing today?");
+      showConsentPrompt();
     }, 100);
   }
 
@@ -144,6 +181,18 @@ document.addEventListener("DOMContentLoaded", () => {
     addUserMessage(message);
     userInput.value = "";
 
+    if (message.toLowerCase() === "start") {
+      state.awaitingConsent = true;
+      state.waitingForSymptoms = false;
+      showConsentPrompt();
+      return;
+    }
+
+    if (state.awaitingConsent) {
+      addBotMessage("Please use the buttons above to continue.");
+      return;
+    }
+
     if (state.waitingForSymptoms) {
       try {
         const result = await getRecommendation(message);
@@ -197,5 +246,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   updateSummary();
-  addBotMessage("Hello! What symptoms are you experiencing today?");
+  showConsentPrompt();
 });
