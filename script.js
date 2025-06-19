@@ -48,6 +48,10 @@ document.addEventListener("DOMContentLoaded", () => {
     clarifying: false,
     clarifyIndex: 0,
     clarifyAnswers: [],
+    awaitingCoverageConfirm: false,
+    awaitingPayment: false,
+    awaitingContact: false,
+    priceEstimate: "",
   };
 
   const bookings = [];
@@ -772,14 +776,122 @@ document.addEventListener("DOMContentLoaded", () => {
     const stop = showCheckingCoverage();
     const price = await fetchConsultationPrice(state.userLocation || 'your area', state.selectedInsurance || 'your insurance');
     stop();
-    addBotMessage(`Your consultation is estimated at ${price} (${state.selectedInsurance} negotiated rate). <span class="subtle-text">This covers the visit only; treatment costs may vary.</span>`);
-    finalizeBooking();
+    state.priceEstimate = price;
+    const msg = addBotMessage(`Your consultation is estimated at ${price} (${state.selectedInsurance} negotiated rate).<br><span class="subtle-text">This covers the visit only; treatment costs may vary.</span>`);
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    const confirm = document.createElement('button');
+    confirm.className = 'consent-button';
+    confirm.textContent = 'Confirm';
+    row.appendChild(confirm);
+    chatMessages.appendChild(row);
+    scrollToBottom();
+    state.awaitingCoverageConfirm = true;
+
+    confirm.addEventListener('click', () => {
+      row.remove();
+      state.awaitingCoverageConfirm = false;
+      showPaymentDetails();
+    });
   }
 
   function selectInsurance(name) {
     state.selectedInsurance = name;
     state.awaitingInsurance = false;
     showPolicyNumberPrompt();
+  }
+
+  function showPaymentDetails() {
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    const form = document.createElement('div');
+    form.className = 'payment-form';
+    form.innerHTML = `
+      <div class="form-group">
+        <label>Card Number</label>
+        <input class="form-input" value="4111 1111 1111 1111">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expiry</label>
+          <input class="form-input" value="12/25">
+        </div>
+        <div class="form-group">
+          <label>CVC</label>
+          <input class="form-input" value="123">
+        </div>
+      </div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'payment-actions';
+    const pay = document.createElement('button');
+    pay.className = 'glass-button primary';
+    pay.textContent = 'Pay';
+    actions.appendChild(pay);
+    form.appendChild(actions);
+    content.appendChild(form);
+    msg.appendChild(content);
+    chatMessages.appendChild(msg);
+    scrollToBottom();
+    state.awaitingPayment = true;
+
+    pay.addEventListener('click', () => {
+      state.awaitingPayment = false;
+      showContactForm();
+    });
+  }
+
+  function showContactForm() {
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    const form = document.createElement('div');
+    form.className = 'payment-form';
+    form.innerHTML = `
+      <div class="form-group">
+        <label>Name</label>
+        <input id="contact-name" class="form-input" value="${state.name}">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <div class="form-row">
+          <select id="contact-country" class="form-input" style="flex:0.5">
+            <option value="+1">+1</option>
+            <option value="+44">+44</option>
+            <option value="+61">+61</option>
+            <option value="+34">+34</option>
+          </select>
+          <input id="contact-phone" class="form-input" value="">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="contact-email" class="form-input" type="email">
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="contact-ok" checked> Send updates to these contacts</label>
+      </div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'payment-actions';
+    const confirm = document.createElement('button');
+    confirm.className = 'glass-button primary';
+    confirm.textContent = 'Confirm';
+    actions.appendChild(confirm);
+    form.appendChild(actions);
+    content.appendChild(form);
+    msg.appendChild(content);
+    chatMessages.appendChild(msg);
+    scrollToBottom();
+    state.awaitingContact = true;
+
+    confirm.addEventListener('click', () => {
+      state.awaitingContact = false;
+      finalizeBooking();
+    });
   }
 
   function finalizeBooking() {
@@ -799,10 +911,14 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectedSlot = null;
     state.selectedInsurance = '';
     state.policyNumber = '';
+    state.priceEstimate = '';
     state.aiQuestions = 0;
     state.clarifying = false;
     state.clarifyIndex = 0;
     state.clarifyAnswers = [];
+    state.awaitingCoverageConfirm = false;
+    state.awaitingPayment = false;
+    state.awaitingContact = false;
     conversation = [{ role: 'system', content: basePrompt }];
     userInput.placeholder = DEFAULT_PLACEHOLDER;
     setTimeout(() => {
@@ -875,6 +991,21 @@ document.addEventListener("DOMContentLoaded", () => {
       state.awaitingPolicy = false;
       userInput.placeholder = DEFAULT_PLACEHOLDER;
       checkCoverage();
+      return;
+    }
+
+    if (state.awaitingCoverageConfirm) {
+      addBotMessage('Please use the Confirm button below.');
+      return;
+    }
+
+    if (state.awaitingPayment) {
+      addBotMessage('Please use the Pay button below.');
+      return;
+    }
+
+    if (state.awaitingContact) {
+      addBotMessage('Please fill the form and press Confirm.');
       return;
     }
 
