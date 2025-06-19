@@ -335,6 +335,22 @@ body::after {
   color: #555;
 }
 
+.back-button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.close-card {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  align-self: flex-end;
+  cursor: pointer;
+}
+
 /* Options Container Styling */
 .options-container {
   height: 0;

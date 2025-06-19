@@ -87,6 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     el.innerHTML = `<div class="message-content">${message}</div>`;
     chatMessages.appendChild(el);
     scrollToBottom();
+    return el;
   }
 
   function showAnalyzing() {
@@ -180,14 +181,15 @@ document.addEventListener("DOMContentLoaded", () => {
     row.appendChild(skip);
     chatMessages.appendChild(row);
     scrollToBottom();
+    imagePromptRow = row;
 
     cam.addEventListener('click', () => {
-      row.remove();
       imageInput.click();
     });
 
     skip.addEventListener('click', () => {
       row.remove();
+      imagePromptRow = null;
       addUserMessage('Skip');
       state.awaitingImage = false;
       state.clarifying = true;
@@ -353,7 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function askForLocation() {
     document.querySelectorAll('.button-row').forEach((el) => el.remove());
-    addBotMessage(
+    const msg = addBotMessage(
       'May I use your device location to find the nearest clinic?<br>(If you\u2019d rather type your ZIP/postcode, choose Skip.)'
     );
     const row = document.createElement('div');
@@ -372,12 +374,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     share.addEventListener('click', () => {
       row.remove();
+      msg.remove();
       state.awaitingLocation = false;
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const loc = `${pos.coords.latitude.toFixed(3)},${pos.coords.longitude.toFixed(3)}`;
           state.userLocation = loc;
-          fetchClinics(loc);
+          const stop = showAnalyzing();
+          await fetchClinics(loc);
+          stop();
         },
         () => {
           addBotMessage("Couldn't get your location. Please type your ZIP/postcode.");
@@ -388,6 +393,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     skip.addEventListener('click', () => {
       row.remove();
+      msg.remove();
       addUserMessage('Skip');
       state.awaitingLocation = false;
       state.awaitingZip = true;
@@ -480,6 +486,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let doctorMessage = null;
   let clinicsData = [];
   let insuranceOptions = [];
+  let expandedDoctorCard = null;
+  let imagePromptRow = null;
 
   function showClinicOptions(clinics) {
     clinicsData = clinics;
@@ -601,11 +609,9 @@ document.addEventListener("DOMContentLoaded", () => {
       container.appendChild(card);
     });
 
-    content.appendChild(intro);
-    content.appendChild(container);
     const back = document.createElement('button');
-    back.className = 'glass-button';
-    back.textContent = 'Back to clinics';
+    back.className = 'back-button';
+    back.textContent = '←';
     back.addEventListener('click', () => {
       msg.remove();
       state.awaitingDoctor = false;
@@ -613,6 +619,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     content.appendChild(back);
+    content.appendChild(intro);
+    content.appendChild(container);
     msg.appendChild(content);
     chatMessages.appendChild(msg);
     scrollToBottom();
@@ -621,6 +629,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function expandDoctorCard(card, doc) {
+    if (expandedDoctorCard && expandedDoctorCard !== card) {
+      collapseDoctorCard(expandedDoctorCard);
+    }
     state.selectedDoctor = doc;
     state.awaitingDoctor = false;
     const selectBtn = card.querySelector('.select-doctor');
@@ -640,7 +651,28 @@ document.addEventListener("DOMContentLoaded", () => {
       row.appendChild(book);
       slotsDiv.appendChild(row);
     });
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-card';
+    closeBtn.textContent = '✖';
+    closeBtn.addEventListener('click', () => collapseDoctorCard(card, doc));
+    card.prepend(closeBtn);
     card.appendChild(slotsDiv);
+    expandedDoctorCard = card;
+  }
+
+  function collapseDoctorCard(card, doc) {
+    const slots = card.querySelector('.slot-options');
+    if (slots) slots.remove();
+    const close = card.querySelector('.close-card');
+    if (close) close.remove();
+    if (!card.querySelector('.select-doctor')) {
+      const btn = document.createElement('button');
+      btn.className = 'glass-button select-doctor';
+      btn.textContent = 'Select';
+      btn.addEventListener('click', () => expandDoctorCard(card, doc));
+      card.appendChild(btn);
+    }
+    if (expandedDoctorCard === card) expandedDoctorCard = null;
   }
 
   async function askForInsurance() {
@@ -784,6 +816,10 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectedDoctor = doctor;
     state.selectedSlot = time;
     state.waitingForSlot = false;
+    if (doctorMessage) {
+      doctorMessage.remove();
+      doctorMessage = null;
+    }
     askForInsurance();
   }
 
@@ -914,7 +950,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleImageUpload(e) {
     const file = e.target.files[0];
-    if (file) analyzeImage(file);
+    if (file) {
+      if (imagePromptRow) {
+        imagePromptRow.remove();
+        imagePromptRow = null;
+      }
+      analyzeImage(file);
+    }
     e.target.value = "";
   }
 
