@@ -34,9 +34,13 @@ document.addEventListener("DOMContentLoaded", () => {
     awaitingZip: false,
     awaitingClinic: false,
     awaitingDoctor: false,
+    awaitingInsurance: false,
+    awaitingInsuranceOther: false,
     aiQuestions: 0,
     name: "",
     lastSymptom: "",
+    userLocation: "",
+    selectedInsurance: "",
     clarifying: false,
     clarifyIndex: 0,
     clarifyAnswers: [],
@@ -113,7 +117,8 @@ document.addEventListener("DOMContentLoaded", () => {
       bookings.forEach((b) => {
         const p = document.createElement("p");
         const clinicText = b.clinic ? ` at ${b.clinic.name}` : "";
-        p.innerHTML = `<strong>${b.doctor.name}</strong> (${b.doctor.specialty})${clinicText} - ${b.slot}`;
+        const insText = b.insurance ? ` with ${b.insurance}` : "";
+        p.innerHTML = `<strong>${b.doctor.name}</strong> (${b.doctor.specialty})${clinicText} - ${b.slot}${insText}`;
         div.appendChild(p);
       });
     } else {
@@ -269,9 +274,13 @@ document.addEventListener("DOMContentLoaded", () => {
     state.awaitingLocation = false;
     state.awaitingZip = false;
     state.awaitingClinic = false;
+    state.awaitingInsurance = false;
+    state.awaitingInsuranceOther = false;
     state.selectedDoctor = null;
     state.selectedSlot = null;
     state.selectedClinic = null;
+    state.selectedInsurance = '';
+    state.userLocation = '';
     state.aiQuestions = 0;
     state.name = "";
     state.lastSymptom = "";
@@ -363,6 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const loc = `${pos.coords.latitude.toFixed(3)},${pos.coords.longitude.toFixed(3)}`;
+          state.userLocation = loc;
           fetchClinics(loc);
         },
         () => {
@@ -428,9 +438,44 @@ document.addEventListener("DOMContentLoaded", () => {
     return spec.endsWith('s') ? spec : spec + 's';
   }
 
+  async function fetchInsuranceOptions(locationText) {
+    const messages = [
+      {
+        role: 'user',
+        content: `List up to 5 popular health insurance providers in ${locationText}. Respond ONLY with JSON ["A","B"]`,
+      },
+    ];
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-3.5-turbo', messages }),
+      });
+      const data = await response.json();
+      let opts = [];
+      if (response.ok) {
+        let content = data.choices?.[0]?.message?.content?.trim();
+        if (content) {
+          content = content.replace(/```json|```/g, '').trim();
+          try {
+            opts = JSON.parse(content);
+          } catch {}
+        }
+      }
+      if (!Array.isArray(opts) || !opts.length) {
+        opts = ['Insurance A', 'Insurance B', 'Insurance C'];
+      }
+      return opts.slice(0, 5);
+    } catch (err) {
+      console.error(err);
+      return ['Insurance A', 'Insurance B', 'Insurance C'];
+    }
+  }
+
   let clinicMessage = null;
   let doctorMessage = null;
   let clinicsData = [];
+  let insuranceOptions = [];
 
   function showClinicOptions(clinics) {
     clinicsData = clinics;
@@ -547,7 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btn = document.createElement('button');
       btn.className = 'glass-button select-doctor';
       btn.textContent = 'Select';
-      btn.addEventListener('click', () => selectDoctor(d));
+      btn.addEventListener('click', () => expandDoctorCard(card, d));
       card.appendChild(btn);
       container.appendChild(card);
     });
@@ -571,50 +616,105 @@ document.addEventListener("DOMContentLoaded", () => {
     doctorMessage = msg;
   }
 
-  function selectDoctor(doc) {
+  function expandDoctorCard(card, doc) {
     state.selectedDoctor = doc;
     state.awaitingDoctor = false;
-    if (doctorMessage) { doctorMessage.remove(); doctorMessage = null; }
-    showAppointmentOptions(doc);
-  }
-
-  function showAppointmentOptions(doctor) {
-    optionsContainer.innerHTML = "";
-    if (!appointmentTemplate) return;
-    const content = appointmentTemplate.content.cloneNode(true);
-    content.querySelector(".doctor-name").textContent = doctor.name;
-    const slotList = content.querySelector(".slot-list");
-    doctor.slots.forEach((time) => {
-      const btn = document.createElement("button");
-      btn.className = "glass-button select-slot";
-      btn.textContent = time;
-      btn.addEventListener("click", () => selectSlot(time));
-      slotList.appendChild(btn);
+    const selectBtn = card.querySelector('.select-doctor');
+    if (selectBtn) selectBtn.remove();
+    const slotsDiv = document.createElement('div');
+    slotsDiv.className = 'slot-options';
+    doc.slots.forEach((time) => {
+      const row = document.createElement('div');
+      row.className = 'slot-row';
+      const span = document.createElement('span');
+      span.textContent = time;
+      const book = document.createElement('button');
+      book.className = 'glass-button book-slot';
+      book.textContent = 'Book';
+      book.addEventListener('click', () => selectSlot(time, doc));
+      row.appendChild(span);
+      row.appendChild(book);
+      slotsDiv.appendChild(row);
     });
-    optionsContainer.appendChild(content);
-    optionsContainer.classList.add("active");
-    state.waitingForSlot = true;
+    card.appendChild(slotsDiv);
   }
 
-  function selectSlot(time) {
-    bookings.push({ doctor: state.selectedDoctor, clinic: state.selectedClinic, slot: time });
-    state.selectedSlot = time;
-    state.waitingForSlot = false;
-    optionsContainer.classList.remove("active");
-    addBotMessage(`Appointment with ${state.selectedDoctor.name} confirmed for ${time}. You'll receive a reminder!`);
+  async function askForInsurance() {
+    document.querySelectorAll('.button-row').forEach((el) => el.remove());
+    insuranceOptions = await fetchInsuranceOptions(state.userLocation || '');
+    addBotMessage(
+      `Which insurance will you use? Popular choices here: ${insuranceOptions.slice(0, 3).join(', ')}. Or Other.`
+    );
+    showInsuranceOptions();
+  }
+
+  function showInsuranceOptions() {
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    insuranceOptions.forEach((ins) => {
+      const btn = document.createElement('button');
+      btn.className = 'consent-button';
+      btn.textContent = ins;
+      btn.addEventListener('click', () => {
+        row.remove();
+        selectInsurance(ins);
+      });
+      row.appendChild(btn);
+    });
+    const other = document.createElement('button');
+    other.className = 'consent-button';
+    other.textContent = 'Other';
+    other.addEventListener('click', () => {
+      row.remove();
+      state.awaitingInsurance = false;
+      state.awaitingInsuranceOther = true;
+      addBotMessage('Please type your insurer name.');
+    });
+    row.appendChild(other);
+    chatMessages.appendChild(row);
+    scrollToBottom();
+    state.awaitingInsurance = true;
+  }
+
+  function selectInsurance(name) {
+    state.selectedInsurance = name;
+    state.awaitingInsurance = false;
+    finalizeBooking();
+  }
+
+  function finalizeBooking() {
+    bookings.push({
+      doctor: state.selectedDoctor,
+      clinic: state.selectedClinic,
+      slot: state.selectedSlot,
+      insurance: state.selectedInsurance,
+    });
+    addBotMessage(
+      `Appointment with ${state.selectedDoctor.name} confirmed for ${state.selectedSlot}. You'll receive a reminder!`
+    );
     updateSummary();
     state.waitingForSymptoms = true;
     state.selectedClinic = null;
     state.selectedDoctor = null;
     state.selectedSlot = null;
+    state.selectedInsurance = '';
     state.aiQuestions = 0;
     state.clarifying = false;
     state.clarifyIndex = 0;
     state.clarifyAnswers = [];
-    conversation = [{ role: "system", content: basePrompt }];
+    conversation = [{ role: 'system', content: basePrompt }];
     setTimeout(() => {
-      addBotMessage("Let me know if you have other symptoms.");
+      addBotMessage('Let me know if you have other symptoms.');
     }, 100);
+  }
+
+  // legacy doctor selection flow kept for reference
+
+  function selectSlot(time, doctor) {
+    state.selectedDoctor = doctor;
+    state.selectedSlot = time;
+    state.waitingForSlot = false;
+    askForInsurance();
   }
 
   async function handleUserMessage() {
@@ -644,6 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (state.awaitingZip) {
       state.awaitingZip = false;
+      state.userLocation = message;
       fetchClinics(message);
       return;
     }
@@ -655,6 +756,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (state.awaitingDoctor) {
       addBotMessage('Please select one of the doctors below.');
+      return;
+    }
+
+    if (state.awaitingInsurance) {
+      addBotMessage('Please choose one of the insurance options below.');
+      return;
+    }
+
+    if (state.awaitingInsuranceOther) {
+      state.selectedInsurance = message;
+      state.awaitingInsuranceOther = false;
+      finalizeBooking();
       return;
     }
 
@@ -712,7 +825,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else if (state.waitingForSlot) {
       if (state.selectedDoctor.slots.includes(message)) {
-        selectSlot(message);
+        selectSlot(message, state.selectedDoctor);
       } else {
         addBotMessage("Please select an available time from the buttons below.");
       }

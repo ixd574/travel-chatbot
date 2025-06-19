@@ -235,6 +235,19 @@
     font-size: 0.85rem;
   }
 
+  .slot-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .slot-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
   .consent-button {
     background: var(--button-bg);
     border: 1px solid var(--primary-color);
