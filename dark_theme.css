@@ -196,6 +196,71 @@
   .message-content {
     line-height: 1.5;
   }
+
+  .message-content img {
+    max-width: 160px;
+    border-radius: 8px;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .clinic-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .clinic-address {
+    color: #aaa;
+  }
+
+  .doctor-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .doctor-desc {
+    font-size: 0.9rem;
+  }
+
+  .doctor-lang {
+    color: #aaa;
+    font-size: 0.85rem;
+  }
+
+  .slot-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .slot-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .consent-button {
+    background: var(--button-bg);
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--primary-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .consent-button:hover {
+    background: var(--button-hover);
+  }
   
   .chat-input-container {
     display: flex;
@@ -237,6 +302,34 @@
   .send-button:hover {
     background: var(--primary-light);
     transform: scale(1.05);
+  }
+
+  .camera-button {
+    margin-right: 8px;
+  }
+
+  .camera-button:hover {
+    background: var(--button-hover);
+  }
+
+  .subtle-text {
+    color: #aaa;
+  }
+
+  .back-button {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+
+  .close-card {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    align-self: flex-end;
+    cursor: pointer;
   }
   
   /* Options Container Styling */
