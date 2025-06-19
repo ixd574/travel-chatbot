@@ -478,6 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let doctorMessage = null;
   let insuranceMessage = null;
   let paymentMessage = null;
+  let contactMessage = null;
   let clinicsData = [];
   let insuranceOptions = [];
   let expandedDoctorCard = null;
@@ -561,21 +562,24 @@ document.addEventListener("DOMContentLoaded", () => {
           rating: (4 + Math.random()).toFixed(1),
           languages: ['English'],
           slots: d.slots,
+          specialty: spec,
         })).slice(0, 4);
       }
+      docs = docs.map((d) => ({ ...d, specialty: spec }));
       showDoctorOptions(docs);
-    } catch (err) {
-      console.error(err);
-      const docs = DOCTORS.filter((d) => d.specialty === spec).map((d) => ({
-        name: d.name,
-        desc: `${spec} with 5 years experience`,
-        rating: (4 + Math.random()).toFixed(1),
-        languages: ['English'],
-        slots: d.slots,
-      })).slice(0, 4);
-      showDoctorOptions(docs);
-    }
+  } catch (err) {
+    console.error(err);
+    const docs = DOCTORS.filter((d) => d.specialty === spec).map((d) => ({
+      name: d.name,
+      desc: `${spec} with 5 years experience`,
+      rating: (4 + Math.random()).toFixed(1),
+      languages: ['English'],
+      slots: d.slots,
+      specialty: spec,
+    })).slice(0, 4);
+    showDoctorOptions(docs);
   }
+}
 
   function showDoctorOptions(doctors) {
     if (doctorMessage) doctorMessage.remove();
@@ -885,10 +889,12 @@ document.addEventListener("DOMContentLoaded", () => {
     msg.appendChild(content);
     chatMessages.appendChild(msg);
     scrollToBottom();
+    contactMessage = msg;
     state.awaitingContact = true;
 
     confirm.addEventListener('click', () => {
       state.awaitingContact = false;
+      if (contactMessage) { contactMessage.remove(); contactMessage = null; }
       finalizeBooking();
     });
   }
@@ -921,7 +927,7 @@ document.addEventListener("DOMContentLoaded", () => {
     conversation = [{ role: 'system', content: basePrompt }];
     userInput.placeholder = DEFAULT_PLACEHOLDER;
     setTimeout(() => {
-      addBotMessage('Let me know if you have other symptoms.');
+      addBotMessage('Let me know if you want to make another booking.');
     }, 100);
   }
 
