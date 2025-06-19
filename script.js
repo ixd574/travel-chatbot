@@ -428,7 +428,13 @@ document.addEventListener("DOMContentLoaded", () => {
     return spec.endsWith('s') ? spec : spec + 's';
   }
 
+  let clinicMessage = null;
+  let doctorMessage = null;
+  let clinicsData = [];
+
   function showClinicOptions(clinics) {
+    clinicsData = clinics;
+    if (clinicMessage) clinicMessage.remove();
     const message = document.createElement('div');
     message.className = 'message bot';
     const content = document.createElement('div');
@@ -459,12 +465,14 @@ document.addEventListener("DOMContentLoaded", () => {
     chatMessages.appendChild(message);
     scrollToBottom();
     state.awaitingClinic = true;
+    clinicMessage = message;
   }
 
   function selectClinic(clinic) {
     state.selectedClinic = clinic;
     state.awaitingClinic = false;
     optionsContainer.classList.remove('active');
+    if (clinicMessage) { clinicMessage.remove(); clinicMessage = null; }
     fetchDoctors(clinic);
   }
 
@@ -519,6 +527,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showDoctorOptions(doctors) {
+    if (doctorMessage) doctorMessage.remove();
     const msg = document.createElement('div');
     msg.className = 'message bot';
     const content = document.createElement('div');
@@ -545,15 +554,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     content.appendChild(intro);
     content.appendChild(container);
+    const back = document.createElement('button');
+    back.className = 'glass-button';
+    back.textContent = 'Back to clinics';
+    back.addEventListener('click', () => {
+      msg.remove();
+      state.awaitingDoctor = false;
+      showClinicOptions(clinicsData);
+    });
+
+    content.appendChild(back);
     msg.appendChild(content);
     chatMessages.appendChild(msg);
     scrollToBottom();
     state.awaitingDoctor = true;
+    doctorMessage = msg;
   }
 
   function selectDoctor(doc) {
     state.selectedDoctor = doc;
     state.awaitingDoctor = false;
+    if (doctorMessage) { doctorMessage.remove(); doctorMessage = null; }
     showAppointmentOptions(doc);
   }
 
