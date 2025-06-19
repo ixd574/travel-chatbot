@@ -311,6 +311,10 @@
   .camera-button:hover {
     background: var(--button-hover);
   }
+
+  .subtle-text {
+    color: #aaa;
+  }
   
   /* Options Container Styling */
   .options-container {

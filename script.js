@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const summary = document.getElementById("booking-summary");
   const appointmentTemplate = document.getElementById("appointment-options-template");
 
+  const DEFAULT_PLACEHOLDER = userInput.placeholder;
+
   const state = {
     awaitingConsent: true,
     awaitingName: false,
@@ -36,11 +38,13 @@ document.addEventListener("DOMContentLoaded", () => {
     awaitingDoctor: false,
     awaitingInsurance: false,
     awaitingInsuranceOther: false,
+    awaitingPolicy: false,
     aiQuestions: 0,
     name: "",
     lastSymptom: "",
     userLocation: "",
     selectedInsurance: "",
+    policyNumber: "",
     clarifying: false,
     clarifyIndex: 0,
     clarifyAnswers: [],
@@ -676,10 +680,74 @@ document.addEventListener("DOMContentLoaded", () => {
     state.awaitingInsurance = true;
   }
 
+  function showPolicyNumberPrompt() {
+    addBotMessage('Please enter your policy number.');
+    userInput.placeholder = 'Policy number';
+    state.awaitingPolicy = true;
+  }
+
+  function showCheckingCoverage() {
+    const el = document.createElement('div');
+    el.className = 'message bot';
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.textContent = 'Checking coverage';
+    el.appendChild(content);
+    chatMessages.appendChild(el);
+    scrollToBottom();
+    let dots = 0;
+    const interval = setInterval(() => {
+      dots = (dots + 1) % 4;
+      content.textContent = 'Checking coverage' + '.'.repeat(dots);
+    }, 500);
+    return () => {
+      clearInterval(interval);
+      el.remove();
+    };
+  }
+
+  async function fetchConsultationPrice(loc, insurance) {
+    const messages = [
+      {
+        role: 'user',
+        content: `In ${loc}, what is an approximate dermatologist consultation price with ${insurance} insurance? Respond ONLY with JSON {"price":"amount CUR"}`,
+      },
+    ];
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-3.5-turbo', messages }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        let content = data.choices?.[0]?.message?.content?.trim();
+        if (content) {
+          content = content.replace(/```json|```/g, '').trim();
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed.price) return parsed.price;
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return '50 USD';
+  }
+
+  async function checkCoverage() {
+    const stop = showCheckingCoverage();
+    const price = await fetchConsultationPrice(state.userLocation || 'your area', state.selectedInsurance || 'your insurance');
+    stop();
+    addBotMessage(`Your consultation is estimated at ${price} (${state.selectedInsurance} negotiated rate). <span class="subtle-text">This covers the visit only; treatment costs may vary.</span>`);
+    finalizeBooking();
+  }
+
   function selectInsurance(name) {
     state.selectedInsurance = name;
     state.awaitingInsurance = false;
-    finalizeBooking();
+    showPolicyNumberPrompt();
   }
 
   function finalizeBooking() {
@@ -698,11 +766,13 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectedDoctor = null;
     state.selectedSlot = null;
     state.selectedInsurance = '';
+    state.policyNumber = '';
     state.aiQuestions = 0;
     state.clarifying = false;
     state.clarifyIndex = 0;
     state.clarifyAnswers = [];
     conversation = [{ role: 'system', content: basePrompt }];
+    userInput.placeholder = DEFAULT_PLACEHOLDER;
     setTimeout(() => {
       addBotMessage('Let me know if you have other symptoms.');
     }, 100);
@@ -764,10 +834,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (state.awaitingPolicy) {
+      state.policyNumber = message;
+      state.awaitingPolicy = false;
+      userInput.placeholder = DEFAULT_PLACEHOLDER;
+      checkCoverage();
+      return;
+    }
+
     if (state.awaitingInsuranceOther) {
       state.selectedInsurance = message;
       state.awaitingInsuranceOther = false;
-      finalizeBooking();
+      showPolicyNumberPrompt();
       return;
     }
 
