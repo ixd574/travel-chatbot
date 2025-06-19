@@ -928,7 +928,25 @@ document.addEventListener("DOMContentLoaded", () => {
     userInput.placeholder = DEFAULT_PLACEHOLDER;
     setTimeout(() => {
       addBotMessage('Let me know if you want to make another booking.');
+      showBookAgainPrompt();
     }, 100);
+  }
+
+  function showBookAgainPrompt() {
+    document.querySelectorAll('.book-again-row').forEach((el) => el.remove());
+    const row = document.createElement('div');
+    row.className = 'button-row book-again-row';
+    const btn = document.createElement('button');
+    btn.className = 'consent-button';
+    btn.textContent = 'Book new appointment';
+    row.appendChild(btn);
+    chatMessages.appendChild(row);
+    scrollToBottom();
+    btn.addEventListener('click', () => {
+      row.remove();
+      addBotMessage(`Hello ${state.name || ''}. What symptoms are you experiencing?`);
+      state.waitingForSymptoms = true;
+    });
   }
 
   // legacy doctor selection flow kept for reference
