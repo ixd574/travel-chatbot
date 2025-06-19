@@ -219,6 +219,22 @@
     color: #aaa;
   }
 
+  .doctor-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .doctor-desc {
+    font-size: 0.9rem;
+  }
+
+  .doctor-lang {
+    color: #aaa;
+    font-size: 0.85rem;
+  }
+
   .consent-button {
     background: var(--button-bg);
     border: 1px solid var(--primary-color);

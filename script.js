@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     awaitingLocation: false,
     awaitingZip: false,
     awaitingClinic: false,
+    awaitingDoctor: false,
     aiQuestions: 0,
     name: "",
     lastSymptom: "",
@@ -464,7 +465,96 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectedClinic = clinic;
     state.awaitingClinic = false;
     optionsContainer.classList.remove('active');
-    showAppointmentOptions(state.selectedDoctor);
+    fetchDoctors(clinic);
+  }
+
+  async function fetchDoctors(clinic) {
+    const spec = state.selectedDoctor.specialty;
+    const messages = [
+      {
+        role: 'user',
+        content:
+          `Generate 4 fictional ${spec}s working at ${clinic.name}. Return JSON ` +
+          `[{"name":"","desc":"","rating":0,"languages":[""],"slots":["time1","time2"]}] with at least 3 slots each.`,
+      },
+    ];
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-3.5-turbo', messages }),
+      });
+      const data = await response.json();
+      let docs = [];
+      if (response.ok) {
+        let content = data.choices?.[0]?.message?.content?.trim();
+        if (content) {
+          content = content.replace(/```json|```/g, '').trim();
+          try {
+            docs = JSON.parse(content);
+          } catch {}
+        }
+      }
+      if (!Array.isArray(docs) || !docs.length) {
+        docs = DOCTORS.filter((d) => d.specialty === spec).map((d) => ({
+          name: d.name,
+          desc: `${spec} with 5 years experience`,
+          rating: (4 + Math.random()).toFixed(1),
+          languages: ['English'],
+          slots: d.slots,
+        })).slice(0, 4);
+      }
+      showDoctorOptions(docs);
+    } catch (err) {
+      console.error(err);
+      const docs = DOCTORS.filter((d) => d.specialty === spec).map((d) => ({
+        name: d.name,
+        desc: `${spec} with 5 years experience`,
+        rating: (4 + Math.random()).toFixed(1),
+        languages: ['English'],
+        slots: d.slots,
+      })).slice(0, 4);
+      showDoctorOptions(docs);
+    }
+  }
+
+  function showDoctorOptions(doctors) {
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    const intro = document.createElement('p');
+    intro.textContent = `Doctors at ${state.selectedClinic.name}:`;
+    const container = document.createElement('div');
+    container.className = 'doctor-options';
+
+    doctors.forEach((d) => {
+      const card = document.createElement('div');
+      card.className = 'option-card doctor-card';
+      card.innerHTML =
+        `<div><strong>${d.name}</strong> ${d.rating}⭐</div>` +
+        `<div class="doctor-desc">${d.desc}</div>` +
+        `<div class="doctor-lang">Languages: ${d.languages.join(', ')}</div>`;
+      const btn = document.createElement('button');
+      btn.className = 'glass-button select-doctor';
+      btn.textContent = 'Select';
+      btn.addEventListener('click', () => selectDoctor(d));
+      card.appendChild(btn);
+      container.appendChild(card);
+    });
+
+    content.appendChild(intro);
+    content.appendChild(container);
+    msg.appendChild(content);
+    chatMessages.appendChild(msg);
+    scrollToBottom();
+    state.awaitingDoctor = true;
+  }
+
+  function selectDoctor(doc) {
+    state.selectedDoctor = doc;
+    state.awaitingDoctor = false;
+    showAppointmentOptions(doc);
   }
 
   function showAppointmentOptions(doctor) {
@@ -539,6 +629,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (state.awaitingClinic) {
       addBotMessage('Please choose one of the clinic options below.');
+      return;
+    }
+
+    if (state.awaitingDoctor) {
+      addBotMessage('Please select one of the doctors below.');
       return;
     }
 

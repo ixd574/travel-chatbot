@@ -238,6 +238,22 @@ body::after {
   color: #555;
 }
 
+.doctor-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.doctor-desc {
+  font-size: 0.9rem;
+}
+
+.doctor-lang {
+  color: #555;
+  font-size: 0.85rem;
+}
+
 .consent-button {
   background: #fff;
   border: 1px solid #000;
