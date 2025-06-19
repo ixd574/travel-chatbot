@@ -360,18 +360,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function askForLocation() {
     document.querySelectorAll('.button-row').forEach((el) => el.remove());
     const msg = addBotMessage(
-      'May I use your device location to find the nearest clinic?<br>(If you\u2019d rather type your ZIP/postcode, choose Skip.)'
+      'May I use your device location to find the nearest clinic?<br>(If you\u2019d rather type your ZIP/postcode, please enter it below.)'
     );
     const row = document.createElement('div');
     row.className = 'button-row';
     const share = document.createElement('button');
     share.className = 'consent-button';
     share.textContent = 'Share Location \uD83D\uDCCD';
-    const skip = document.createElement('button');
-    skip.className = 'consent-button';
-    skip.textContent = 'Skip \u274C';
     row.appendChild(share);
-    row.appendChild(skip);
     chatMessages.appendChild(row);
     scrollToBottom();
     state.awaitingLocation = true;
@@ -395,14 +391,6 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     });
 
-    skip.addEventListener('click', () => {
-      row.remove();
-      msg.remove();
-      addUserMessage('Skip');
-      state.awaitingLocation = false;
-      state.awaitingZip = true;
-      addBotMessage('Please type your ZIP/postcode.');
-    });
   }
 
   async function fetchClinics(locationText) {
@@ -488,6 +476,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let clinicMessage = null;
   let doctorMessage = null;
+  let insuranceMessage = null;
+  let paymentMessage = null;
   let clinicsData = [];
   let insuranceOptions = [];
   let expandedDoctorCard = null;
@@ -589,6 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function showDoctorOptions(doctors) {
     if (doctorMessage) doctorMessage.remove();
+    if (paymentMessage) paymentMessage.remove();
     const msg = document.createElement('div');
     msg.className = 'message bot';
     const content = document.createElement('div');
@@ -601,6 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
     doctors.forEach((d) => {
       const card = document.createElement('div');
       card.className = 'option-card doctor-card';
+      card.__doc = d;
       card.innerHTML =
         `<div><strong>${d.name}</strong> ${d.rating}⭐</div>` +
         `<div class="doctor-desc">${d.desc}</div>` +
@@ -634,7 +626,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function expandDoctorCard(card, doc) {
     if (expandedDoctorCard && expandedDoctorCard !== card) {
-      collapseDoctorCard(expandedDoctorCard);
+      collapseDoctorCard(expandedDoctorCard, expandedDoctorCard.__doc);
     }
     state.selectedDoctor = doc;
     state.awaitingDoctor = false;
@@ -665,6 +657,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function collapseDoctorCard(card, doc) {
+    if (!doc) doc = card.__doc;
     const slots = card.querySelector('.slot-options');
     if (slots) slots.remove();
     const close = card.querySelector('.close-card');
@@ -682,7 +675,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function askForInsurance() {
     document.querySelectorAll('.button-row').forEach((el) => el.remove());
     insuranceOptions = await fetchInsuranceOptions(state.userLocation || '');
-    addBotMessage(
+    if (insuranceMessage) insuranceMessage.remove();
+    insuranceMessage = addBotMessage(
       `Which insurance will you use? Popular choices here: ${insuranceOptions.slice(0, 3).join(', ')}. Or Other.`
     );
     showInsuranceOptions();
@@ -706,6 +700,7 @@ document.addEventListener("DOMContentLoaded", () => {
     other.textContent = 'Other';
     other.addEventListener('click', () => {
       row.remove();
+      if (insuranceMessage) { insuranceMessage.remove(); insuranceMessage = null; }
       state.awaitingInsurance = false;
       state.awaitingInsuranceOther = true;
       addBotMessage('Please type your insurer name.');
@@ -717,6 +712,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showPolicyNumberPrompt() {
+    if (insuranceMessage) { insuranceMessage.remove(); insuranceMessage = null; }
     addBotMessage('Please enter your policy number.');
     userInput.placeholder = 'Policy number';
     state.awaitingPolicy = true;
@@ -798,6 +794,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function selectInsurance(name) {
     state.selectedInsurance = name;
     state.awaitingInsurance = false;
+    if (insuranceMessage) { insuranceMessage.remove(); insuranceMessage = null; }
     showPolicyNumberPrompt();
   }
 
@@ -835,10 +832,12 @@ document.addEventListener("DOMContentLoaded", () => {
     msg.appendChild(content);
     chatMessages.appendChild(msg);
     scrollToBottom();
+    paymentMessage = msg;
     state.awaitingPayment = true;
 
     pay.addEventListener('click', () => {
       state.awaitingPayment = false;
+      if (paymentMessage) { paymentMessage.remove(); paymentMessage = null; }
       showContactForm();
     });
   }
@@ -960,7 +959,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (state.awaitingLocation) {
-      addBotMessage('Please use the buttons below to share your location or skip.');
+      state.awaitingLocation = false;
+      if (message.toLowerCase() === 'skip') {
+        state.awaitingZip = true;
+        addBotMessage('Please type your ZIP/postcode.');
+      } else {
+        state.userLocation = message;
+        fetchClinics(message);
+      }
       return;
     }
 
